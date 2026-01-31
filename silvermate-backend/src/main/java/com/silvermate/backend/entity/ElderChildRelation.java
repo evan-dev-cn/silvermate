@@ -25,7 +25,7 @@ public class ElderChildRelation {
     private Long childId;
 
     @Column(length = 20)
-    private String relaitonType;
+    private String relationType;
 
     @Column(nullable = false)
     private LocalDateTime createTime =LocalDateTime.now();
@@ -33,4 +33,21 @@ public class ElderChildRelation {
     @Column(nullable = false)
     private Byte status =1;//1有效0无效
 
+    public Long getRelationId() { return relationId; }
+    public void setRelationId(Long relationId) { this.relationId = relationId; }
+
+    public Long getElderId() { return elderId; }
+    public void setElderId(Long elderId) { this.elderId = elderId; }
+
+    public Long getChildId() { return childId; }
+    public void setChildId(Long childId) { this.childId = childId; }
+
+    public String getRelationType() { return relationType; }
+    public void setRelationType(String relationType) { this.relationType = relationType; }
+
+    public LocalDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+
+    public Byte getStatus() { return status; }
+    public void setStatus(Byte status) { this.status = status; }
 }
