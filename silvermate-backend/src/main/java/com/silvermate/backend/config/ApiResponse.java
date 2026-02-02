@@ -34,7 +34,7 @@ public class ApiResponse<T> {
         return new ApiResponse<>(500, message,null);
     }
     //getter&setter
-    public int getcode(){return code;}
+    public int getCode(){return code;}
     public void setCode(int code){this.code = code;}
 
     public String getMessage(){return message;}

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>登录 - 智伴银龄</title>
+    <style>
+        body { font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 320px; }
+        h2 { text-align: center; color: #333; }
+        input { width: 100%; margin: 10px 0; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #40a9ff; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>智伴银龄系统</h2>
+        <input type="text" id="userAccount" placeholder="请输入账号 (手机号)">
+        <input type="password" id="userPassword" placeholder="请输入密码">
+        <button onclick="login()">登录</button>
+    </div>
+
+    <script>
+        async function login() {
+            // 1. 获取元素 (确保 ID 名和上面 input 标签的一模一样)
+            const accountInput = document.getElementById('userAccount');
+            const passwordInput = document.getElementById('userPassword');
+
+            // 2. 取值
+            const userAccount = accountInput.value;
+            const userPassword = passwordInput.value;
+
+            // 3. 对接后端
+            try {
+                // 注意：必须写完整的 http 地址，否则双击打开 HTML 会找不到后端
+                const res = await fetch('http://localhost:8080/api/user/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    // 发送给后端的 key 也要是 userPassword
+                    body: JSON.stringify({ userAccount, userPassword })
+                });
+
+                if (!res.ok) throw new Error("服务器响应异常");
+
+                const result = await res.json();
+                
+                if (result.code === 200) {
+                    // 登录成功，存储数据
+                    localStorage.setItem('userId', result.data.userId);
+                    localStorage.setItem('userName', result.data.userName);
+                    alert("登录成功！");
+                    location.href = 'home.html';
+                } else { 
+                    alert("登录失败: " + result.message); 
+                }
+            } catch (e) { 
+                console.error("连接失败:", e);
+                alert("无法连接到后端，请确认后端已启动且允许跨域。"); 
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>异常警告 - 智伴银龄</title>
+    <style>
+        body { display: flex; margin: 0; font-family: 'Segoe UI', sans-serif; background: #f4f7f9; }
+        .sidebar { width: 240px; background: #001529; color: white; min-height: 100vh; display: flex; flex-direction: column; }
+        .sidebar h2 { text-align: center; padding: 20px; border-bottom: 1px solid #1f2d3d; margin: 0; }
+        
+        /* 这里的样式确保点击区域足够大 */
+        .menu-item { padding: 15px 25px; color: #a6adb4; cursor: pointer; transition: 0.3s; text-decoration: none; }
+        .menu-item:hover, .active-menu { color: white !important; background: #1890ff !important; }
+        
+        .main { flex: 1; padding: 25px; overflow-y: auto; }
+        .section-title { border-bottom: 2px solid #1890ff; padding-bottom: 10px; margin-bottom: 20px; color: #333; }
+        
+        .alert-list { display: flex; flex-direction: column; gap: 15px; }
+        .alert-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #ff4d4f; }
+        .alert-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .alert-type { font-weight: bold; color: #f5222d; font-size: 16px; }
+        .alert-time { color: #999; font-size: 13px; }
+        .alert-content { color: #666; line-height: 1.6; }
+        
+        .btn-detail { margin-top: 10px; padding: 6px 15px; background: white; border: 1px solid #d9d9d9; border-radius: 4px; cursor: pointer; }
+        .no-data { text-align: center; padding: 50px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>智伴银龄</h2>
+        <div class="menu-item" onclick="location.href='home.html'">🏠 首页概览</div>
+        <div class="menu-item" onclick="location.href='health-add.html'">📝 健康记录录入</div>
+        <div class="menu-item" onclick="location.href='medication.html'">💊 服药记录统计</div>
+        <div class="menu-item active-menu" onclick="location.href='alerts.html'">⚠️ 异常提醒中心</div>
+        <div class="menu-item" style="margin-top: auto;" onclick="localStorage.clear(); location.href='login.html'">🚪 退出登录</div>
+    </div>
+    
+    <div class="main">
+        <h3 class="section-title">实时报警与风险监测 (t_abnormal_alert)</h3>
+        
+        <div id="alertContainer" class="alert-list">
+            <div class="no-data">正在扫描系统报警记录...</div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = async () => {
+            const childId = localStorage.getItem('userId');
+            if (!childId) {
+                alert("请先登录！");
+                window.location.href = 'login.html';
+                return;
+            }
+            loadAlerts(childId);
+        };
+
+        async function loadAlerts(childId) {
+            const container = document.getElementById('alertContainer');
+            try {
+                const res = await fetch(`http://localhost:8080/api/alert/list?childId=${childId}`);
+                const result = await res.json();
+
+                if (result.code === 200 && result.data && result.data.length > 0) {
+                    container.innerHTML = ''; 
+                    result.data.forEach(item => {
+                        const time = (item.createTime || '').replace('T', ' ').substring(0, 19);
+                        const card = `
+                            <div class="alert-card" style="border-left-color: ${item.alertLevel === '高' ? '#ff4d4f' : '#faad14'}">
+                                <div class="alert-header">
+                                    <span class="alert-type">⚠️ ${item.alertType || '数据异常'}</span>
+                                    <span class="alert-time">${time}</span>
+                                </div>
+                                <div class="alert-content">
+                                    ${item.alertContent || '数值触发预警阈值，请联系老人。'}
+                                </div>
+                                <button class="btn-detail" onclick="handleAlert(${item.alertId})">标记为已读</button>
+                            </div>
+                        `;
+                        container.innerHTML += card;
+                    });
+                } else {
+                    container.innerHTML = '<div class="no-data">✅ 当前暂无未处理的异常提醒。</div>';
+                }
+            } catch (error) {
+                console.error("加载失败:", error);
+                container.innerHTML = '<div class="no-data" style="color: red;">无法连接报警中心。</div>';
+            }
+        }
+
+        async function handleAlert(alertId) {
+            if(confirm("确认已关注此异常？")) {
+                alert("处理记录已保存");
+            }
+        }
+    </script>
+</body>
+</html>

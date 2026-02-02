@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>智伴银龄 - 管理首页</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; display: flex; background: #f0f2f5; height: 100vh; }
+        /* 侧边栏 */
+        .sidebar { width: 240px; background: #001529; color: white; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 20px; font-size: 20px; font-weight: bold; text-align: center; border-bottom: 1px solid #1f2d3d; }
+        .menu-item { padding: 15px 25px; cursor: pointer; transition: 0.3s; }
+        .menu-item:hover, .menu-item.active { background: #1890ff; }
+        
+        /* 主体内容 */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: white; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,21,41,.08); }
+        .content-body { padding: 24px; overflow-y: auto; }
+        
+        /* 表格样式 */
+        .card { background: white; padding: 24px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #fafafa; text-align: left; padding: 16px; border-bottom: 2px solid #f0f0f0; }
+        td { padding: 16px; border-bottom: 1px solid #f0f0f0; }
+        .tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header">智伴银龄系统</div>
+        <div class="menu-item active" onclick="location.href='home.html'">🏠 首页概览</div>
+        <div class="menu-item" onclick="location.href='health-add.html'">📝 健康记录录入</div>
+        <div class="menu-item" onclick="location.href='medication.html'">💊 服药记录统计</div>
+        <div class="menu-item" onclick="location.href='alerts.html'">🔔 报警记录</div>
+        <div class="menu-item" style="margin-top: auto;" onclick="localStorage.clear(); location.href='login.html'">🚪 退出登录</div>
+    </div>
+
+    <div class="main-content">
+        <header class="header">
+            <div class="breadcrumb">当前查看：<b id="elderName">加载中...</b></div>
+            <div class="user-info">欢迎您，<span id="currentUserName">用户</span></div>
+        </header>
+
+        <div class="content-body">
+            <div class="card">
+                <h3>最新健康监测记录</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>检测时间</th>
+                            <th>监测项目与数值</th>
+                            <th>数据来源</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTable">
+                        <tr>
+                            <td colspan="4" style="text-align:center;">正在拉取老人健康数据...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = async () => {
+            const childId = localStorage.getItem('userId');
+            const userName = localStorage.getItem('userName');
+            
+            // 设置欢迎语
+            if(userName) document.getElementById('currentUserName').innerText = userName;
+
+            if (!childId) {
+                alert("未检测到登录状态，请先登录");
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                // 获取关联老人
+                const relRes = await fetch(`http://localhost:8080/api/relation/elder/list?childId=${childId}`);
+                if (!relRes.ok) throw new Error(`接口响应异常: ${relRes.status}`);
+                
+                const relResult = await relRes.json();
+                console.log("关联数据:", relResult);
+
+                if (relResult.code === 200 && relResult.data && relResult.data.length > 0) {
+                    const firstElder = relResult.data[0];
+                    
+                    // 绑定老人姓名
+                    document.getElementById('elderName').innerText = firstElder.userName || "关联老人";
+
+                    // 加载该老人的健康数据
+                    loadHealthRecords(firstElder.userId || firstElder.elderId);
+                } else {
+                    document.getElementById('auditTable').innerHTML = `<tr><td colspan="4" style="color:red; text-align:center;">未找到关联的老人信息，请检查数据库 relation 表</td></tr>`;
+                    document.getElementById('elderName').innerText = "无关联老人";
+                }
+            } catch (error) {
+                console.error("加载首页失败:", error);
+                alert("首页数据加载失败，请检查控制台。");
+            }
+        };
+
+        async function loadHealthRecords(userId) {
+            if (!userId) return;
+            try {
+                const res = await fetch(`http://localhost:8080/api/health/list?userId=${userId}`);
+                const result = await res.json();
+                
+                if (result.code === 200 && result.data) {
+                    const tableBody = document.getElementById('auditTable');
+                    tableBody.innerHTML = ''; // 清空加载中提示
+
+                    if(result.data.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">该老人暂无健康记录</td></tr>';
+                        return;
+                    }
+
+                    result.data.forEach(item => {
+                        // 转换时间显示
+                        let time = item.recordTime || item.createTime || '最近';
+                        if(time.includes('T')) time = time.replace('T', ' ').substring(0, 19);
+
+                        const row = `
+                            <tr>
+                                <td>${time}</td>
+                                <td><b>${item.healthType}</b>: ${item.healthValue}</td>
+                                <td>${item.recordWay == 2 ? '📡 设备同步' : '✍️ 手动录入'}</td>
+                                <td><span class="tag" style="background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f">正常</span></td>
+                            </tr>
+                        `;
+                        tableBody.innerHTML += row;
+                    });
+                }
+            } catch (error) {
+                console.error("获取健康列表失败:", error);
+            }
+        }
+    </script>
+</body>
+</html>

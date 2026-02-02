@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>服药统计 - 智伴银龄</title>
+    <style>
+        body { display: flex; margin: 0; font-family: 'Segoe UI', sans-serif; background: #f4f7f9; height: 100vh; }
+        
+        /* 侧边栏样式：与首页保持绝对一致 */
+        .sidebar { width: 240px; background: #001529; color: white; display: flex; flex-direction: column; }
+        .sidebar h2 { padding: 20px; text-align: center; border-bottom: 1px solid #1f2d3d; margin: 0; }
+        .menu-item { padding: 15px 25px; color: #a6adb4; cursor: pointer; transition: 0.3s; }
+        .menu-item:hover, .active-menu { color: white !important; background: #1890ff !important; }
+        
+        .main { flex: 1; padding: 25px; overflow-y: auto; }
+        
+        /* 达成率卡片 */
+        .rate-card { background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .progress-container { width: 100%; background: #eee; border-radius: 10px; height: 20px; margin: 15px 0; overflow: hidden; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #1890ff, #52c41a); width: 0%; transition: width 0.8s ease; }
+        
+        /* 表格样式 */
+        .med-list { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: #fafafa; padding: 16px; text-align: left; border-bottom: 2px solid #f0f0f0; }
+        td { padding: 16px; border-bottom: 1px solid #f0f0f0; }
+        
+        .status-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+        .status-done { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+        .status-pending { background: #fff7e6; color: #faad14; border: 1px solid #ffe7ba; }
+        button { padding: 6px 12px; background: #1890ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>智伴银龄</h2>
+        <div class="menu-item" onclick="location.href='home.html'">🏠 首页概览</div>
+        <div class="menu-item" onclick="location.href='health-add.html'">📝 健康记录录入</div>
+        <div class="menu-item active-menu" onclick="location.href='medication.html'">💊 服药记录统计</div>
+        <div class="menu-item" onclick="location.href='alerts.html'">⚠️ 异常提醒中心</div>
+        <div class="menu-item" style="margin-top: auto; border-top: 1px solid #1f2d3d;" onclick="localStorage.clear(); location.href='login.html'">🚪 退出登录</div>
+    </div>
+
+    <div class="main">
+        <h3>服药达成率监测</h3>
+        <div class="rate-card">
+            <div>今日服药完成进度：<b id="rateText" style="font-size: 20px; color: #1890ff;">0%</b></div>
+            <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <small style="color: #888;">* 统计结果基于今日计划药量与已确认记录</small>
+        </div>
+
+        <div class="med-list">
+            <h4>今日服药详情清单</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>药品名称</th>
+                        <th>服用剂量</th>
+                        <th>计划时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="medTableBody">
+                    <tr><td colspan="5" style="text-align:center;">数据同步中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        window.onload = async () => {
+            const childId = localStorage.getItem('userId');
+            if (!childId) {
+                window.location.href = 'login.html';
+                return;
+            }
+            loadMedData(childId);
+        };
+
+        async function loadMedData(childId) {
+            try {
+                // 1. 获取关联老人
+                const relRes = await fetch(`http://localhost:8080/api/relation/elder/list?childId=${childId}`);
+                const relData = await relRes.json();
+                
+                if (relData.code === 200 && relData.data.length > 0) {
+                    const elderId = relData.data[0].userId || relData.data[0].elderId;
+                    
+                    // 2. 获取服药记录
+                    const res = await fetch(`http://localhost:8080/api/medication/list?userId=${elderId}`);
+                    const result = await res.json();
+                    
+                    if (result.code === 200) {
+                        renderMedTable(result.data);
+                        updateProgress(result.data);
+                    }
+                }
+            } catch (error) {
+                console.error("加载失败:", error);
+                document.getElementById('medTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">无法连接服务器</td></tr>';
+            }
+        }
+
+        function renderMedTable(data) {
+            const tbody = document.getElementById('medTableBody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">今日暂无服药计划</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                const isDone = item.status === 1; 
+                const row = `
+                    <tr>
+                        <td><b>${item.medName}</b></td>
+                        <td>${item.dosage}</td>
+                        <td>${item.planTime || '未设置'}</td>
+                        <td>
+                            <span class="status-tag ${isDone ? 'status-done' : 'status-pending'}">
+                                ${isDone ? '已服药' : '待服用'}
+                            </span>
+                        </td>
+                        <td>
+                            ${isDone ? '<span style="color:#ccc">完成</span>' : `<button onclick="confirmMed(${item.recordId})">确认服用</button>`}
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function updateProgress(data) {
+            if (!data || data.length === 0) return;
+            const doneCount = data.filter(i => i.status === 1).length;
+            const rate = Math.round((doneCount / data.length) * 100);
+            
+            document.getElementById('progressBar').style.width = rate + '%';
+            document.getElementById('rateText').innerText = rate + '%';
+        }
+
+        async function confirmMed(recordId) {
+            if(confirm("确定已服用该药物吗？")) {
+                // 这里对接更新接口，完成后重新加载
+                alert("确认成功！");
+                // location.reload(); 
+            }
+        }
+    </script>
+</body>
+</html>
